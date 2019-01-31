@@ -4,15 +4,19 @@ import logging
 import os
 import smtplib
 import sys
+import re
+import publicsuffix
+from publicsuffix import PublicSuffixList
 from time import sleep
 
 from aiosmtpd.controller import Controller
 
 
 __version__ = '1.0.2'
+regex=re.compile('X-PHP-Script: ((?:[a-z]+\.)+[a-z]+)', re.I)
 
 class MailProxyHandler:
-    def __init__(self, host, port=0, auth=None, use_ssl=False, starttls=False):
+    def __init__(self, host, port=0, auth=None, use_ssl=False, starttls=False, prefix="noreply"):
         self._host = host
         self._port = port
         auth = auth or {}
@@ -20,8 +24,17 @@ class MailProxyHandler:
         self._auth_password = auth.get('password')
         self._use_ssl = use_ssl
         self._starttls = starttls
+        self.psl_file = publicsuffix.fetch()
+        self.psl = PublicSuffixList(self.psl_file)
+        self.prefix = prefix
 
     async def handle_DATA(self, server, session, envelope):
+        global regex
+        regex=re.compile('X-PHP-Script: ((?:[a-z]+\.)+[a-z]+)', re.I)
+        fromsender=regex.search(envelope.original_content.decode('utf-8')).group(1)
+        domain=self.psl.get_public_suffix(fromsender)
+        envelope.mail_from=prefix+"@"+domain
+        print("from:", envelope.mail_from)
         try:
             refused = self._deliver(envelope)
         except smtplib.SMTPRecipientsRefused as e:
@@ -95,6 +108,7 @@ if __name__ == '__main__':
             auth=auth,
             use_ssl=config.getboolean('remote', 'use_ssl',fallback=False),
             starttls=config.getboolean('remote', 'starttls',fallback=False),
+            prefix=config.get('global', 'prefix'),
         ),
         hostname=config.get('local', 'host', fallback='127.0.0.1'),
         port=config.getint('local', 'port', fallback=25)
