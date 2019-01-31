@@ -30,11 +30,9 @@ class MailProxyHandler:
 
     async def handle_DATA(self, server, session, envelope):
         global regex
-        regex=re.compile('X-PHP-Script: ((?:[a-z]+\.)+[a-z]+)', re.I)
         fromsender=regex.search(envelope.original_content.decode('utf-8')).group(1)
         domain=self.psl.get_public_suffix(fromsender)
-        envelope.mail_from=prefix+"@"+domain
-        print("from:", envelope.mail_from)
+        envelope.mail_from=self.prefix+"@"+domain
         try:
             refused = self._deliver(envelope)
         except smtplib.SMTPRecipientsRefused as e:
