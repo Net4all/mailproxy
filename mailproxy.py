@@ -1,3 +1,4 @@
+#!/bin/env python3.6
 import asyncio
 import configparser
 import logging
@@ -10,10 +11,14 @@ from publicsuffix import PublicSuffixList
 from time import sleep
 
 from aiosmtpd.controller import Controller
-
+from aiosmtpd.smtp import SMTP as SMTPServer
 
 __version__ = '1.0.2'
 regex=re.compile('X-PHP-Script: ((?:[a-z]+\.)+[a-z]+)', re.I)
+
+class UTF8Controller(Controller):
+    def factory(self):
+        return SMTPServer(self.handler, decode_data=True)
 
 class MailProxyHandler:
     def __init__(self, host, port=0, auth=None, use_ssl=False, starttls=False, prefix="noreply"):
@@ -30,7 +35,8 @@ class MailProxyHandler:
 
     async def handle_DATA(self, server, session, envelope):
         global regex
-        fromsender=regex.search(envelope.original_content.decode('utf-8')).group(1)
+        print(str(envelope.content))
+        fromsender=regex.search(envelope.content).group(1)
         domain=self.psl.get_public_suffix(fromsender)
         envelope.mail_from=self.prefix+"@"+domain
         try:
@@ -70,7 +76,7 @@ class MailProxyHandler:
         except (OSError, smtplib.SMTPException) as e:
             logging.exception('got %s', e.__class__)
             # All recipients were refused. If the exception had an associated
-            # error code, use it.  Otherwise, fake it with a SMTP 554 status code. 
+            # error code, use it.  Otherwise, fake it with a SMTP 554 status code.
             errcode = getattr(e, 'smtp_code', 554)
             errmsg = getattr(e, 'smtp_error', e.__class__)
             raise smtplib.SMTPResponseException(errcode, errmsg.decode())
@@ -89,7 +95,7 @@ if __name__ == '__main__':
 
     config = configparser.ConfigParser()
     config.read(config_path)
-    
+
     use_auth = config.getboolean('remote', 'smtp_auth', fallback=False)
     if use_auth:
         auth = {
@@ -98,8 +104,8 @@ if __name__ == '__main__':
         }
     else:
         auth = None
-    
-    controller = Controller(
+
+    controller = UTF8Controller(
         MailProxyHandler(
             host=config.get('remote', 'host'),
             port=config.getint('remote', 'port', fallback=25),
