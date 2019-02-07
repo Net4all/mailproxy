@@ -14,7 +14,7 @@ from aiosmtpd.controller import Controller
 from aiosmtpd.smtp import SMTP as SMTPServer
 
 __version__ = '1.0.2'
-regex=re.compile('X-PHP-Script: ((?:[a-z]+\.)+[a-z]+)', re.I)
+regex=re.compile('X-PHP-Script: ((?:[a-zA-Z-]+\.)+[a-zA-Z]+)', re.I)
 
 class UTF8Controller(Controller):
     def factory(self):
